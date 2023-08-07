@@ -61,8 +61,16 @@ export default {
   'common.text.wechatPopularizeAi2':
     'Follow the wechat public account and send "AI" to get the ApiKey for free, and give away the number of experiences.',
   'common.text.wechatPopularize': 'You can also send "promotion" to get more experiences for free.',
+  'common.text.export': 'Export',
   'common.notification.detail': 'More details',
   'common.notification.solution': 'Solution',
   'common.button.copyError': 'Copy error report',
-  'common.button.copyErrorTips': '（The interface information and detailed parameters will be copied here. If there are sensitive parameters, please parse JSON first and then send them）',
+  'common.button.copyErrorTips':
+    '（The interface information and detailed parameters will be copied here. If there are sensitive parameters, please parse JSON first and then send them）',
+  'common.tips.formatError': 'Formatting failed, please check whether the sql is correct',
+  'common.text.executeSelectedSQL': 'Execute selected SQL',
+  'common.text.refreshPage': 'Refresh page',
+  'common.text.saveConsole': 'Save console',
+  'common.text.textToSQL': 'Plain text to SQL',
+  'common.text.editorRightClick': 'Editor right click',
 };

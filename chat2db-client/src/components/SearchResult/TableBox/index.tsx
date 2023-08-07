@@ -1,18 +1,21 @@
 import React, { useMemo, useState } from 'react';
-import { TableDataType } from '@/constants/table';
-import { IManageResultData, IResultConfig } from '@/typings/database';
-import { formatDate } from '@/utils/date';
-import { Button, message, Modal } from 'antd';
+import { Button, Dropdown, MenuProps, message, Modal, Space } from 'antd';
 import { BaseTable, ArtColumn, useTablePipeline, features, SortItem } from 'ali-react-table';
-import Iconfont from '../../Iconfont';
+import styled from 'styled-components';
 import classnames from 'classnames';
+import i18n from '@/i18n';
+import { ThemeType } from '@/constants';
+import { TableDataType } from '@/constants/table';
+import { useTheme } from '@/hooks/useTheme';
+import { IManageResultData, IResultConfig } from '@/typings/database';
+import { compareStrings } from '@/utils/sort';
+import { DownOutlined, UserOutlined } from '@ant-design/icons';
+import { ExportSizeEnum, ExportTypeEnum } from '@/typings/resultTable';
+import { formatDate } from '@/utils/date';
+import { copy } from '@/utils';
+import Iconfont from '../../Iconfont';
 import StateIndicator from '../../StateIndicator';
 import MonacoEditor from '../../Console/MonacoEditor';
-import { useTheme } from '@/hooks/useTheme';
-import styled from 'styled-components';
-import { ThemeType } from '@/constants';
-import i18n from '@/i18n';
-import { compareStrings } from '@/utils/sort';
 import MyPagination from '../Pagination';
 import styles from './index.less';
 
@@ -22,7 +25,7 @@ interface ITableProps {
   config: IResultConfig;
   onConfigChange: (config: IResultConfig) => void;
   onSearchTotal: () => Promise<number | undefined>;
-  onExport: () => void;
+  onExport: (sql: string, originalSql: string, exportType: ExportTypeEnum, exportSize: ExportSizeEnum) => void;
 }
 
 interface IViewTableCellData {
@@ -47,10 +50,53 @@ const DarkSupportBaseTable: any = styled(BaseTable)`
 
 export default function TableBox(props: ITableProps) {
   const { className, data, config, onConfigChange, onSearchTotal } = props;
-  const { headerList, dataList, duration, description } = data || {};
+  const { headerList, dataList, duration, description, sqlType } = data || {};
   const [viewTableCellData, setViewTableCellData] = useState<IViewTableCellData | null>(null);
   const [appTheme] = useTheme();
   const isDarkTheme = useMemo(() => appTheme.backgroundColor === ThemeType.Dark, [appTheme]);
+  const [messageApi, contextHolder] = message.useMessage();
+
+  const handleExport = (exportType: ExportTypeEnum, exportSize: ExportSizeEnum) => {
+    props.onExport && props.onExport(data.sql, data.originalSql, exportType, exportSize);
+  };
+
+  const items: MenuProps['items'] = useMemo(
+    () => [
+      {
+        label: i18n('workspace.table.export.all.csv'),
+        key: '1',
+        // icon: <UserOutlined />,
+        onClick: () => {
+          handleExport(ExportTypeEnum.CSV, ExportSizeEnum.ALL);
+        },
+      },
+      {
+        label: i18n('workspace.table.export.all.insert'),
+        key: '2',
+        // icon: <UserOutlined />,
+        onClick: () => {
+          handleExport(ExportTypeEnum.INSERT, ExportSizeEnum.ALL);
+        },
+      },
+      {
+        label: i18n('workspace.table.export.cur.csv'),
+        key: '3',
+        // icon: <UserOutlined />,
+        onClick: () => {
+          handleExport(ExportTypeEnum.CSV, ExportSizeEnum.CURRENT_PAGE);
+        },
+      },
+      {
+        label: i18n('workspace.table.export.cur.insert'),
+        key: '4',
+        // icon: <UserOutlined />,
+        onClick: () => {
+          handleExport(ExportTypeEnum.INSERT, ExportSizeEnum.CURRENT_PAGE);
+        },
+      },
+    ],
+    [data],
+  );
 
   const defaultSorts: SortItem[] = useMemo(
     () =>
@@ -66,8 +112,8 @@ export default function TableBox(props: ITableProps) {
   }
 
   function copyTableCell(data: IViewTableCellData) {
-    navigator.clipboard.writeText(data?.value || viewTableCellData?.value);
-    message.success(i18n('common.button.copySuccessfully'));
+    copy(data?.value || viewTableCellData?.value);
+    messageApi.success(i18n('common.button.copySuccessfully'));
   }
 
   function handleCancel() {
@@ -131,12 +177,11 @@ export default function TableBox(props: ITableProps) {
           if (type === TableDataType.DATETIME && i) {
             rowData[columns[index].name] = formatDate(i, 'yyyy-MM-dd hh:mm:ss');
           } else if (i === null) {
-            rowData[columns[index].name] = '';
+            rowData[columns[index].name] = '<null>';
           } else {
             rowData[columns[index].name] = i;
           }
         });
-        rowData.key = rowIndex;
         return rowData;
       });
     }
@@ -176,9 +221,24 @@ export default function TableBox(props: ITableProps) {
       return await props.onSearchTotal();
     }
   };
-  return (
-    <div className={classnames(className, styles.tableBox)}>
-      {columns.length ? (
+  const renderContent = () => {
+    const bottomStatus = (
+      <div className={styles.statusBar}>
+        <span>{`【${i18n('common.text.result')}】${description}.`}</span>
+        <span>{`【${i18n('common.text.timeConsuming')}】${duration}ms.`}</span>
+        <span>{`【${i18n('common.text.searchRow')}】${tableData.length} ${i18n('common.text.row')}.`}</span>
+      </div>
+    );
+
+    if (!columns.length || sqlType !== 'SELECT') {
+      return (
+        <>
+          <StateIndicator state="success" text={i18n('common.text.successfulExecution')} />
+          <div style={{ position: 'absolute', bottom: 0 }}>{bottomStatus}</div>
+        </>
+      );
+    } else {
+      return (
         <>
           <div className={styles.toolBar}>
             <div className={styles.toolBarItem}>
@@ -189,16 +249,15 @@ export default function TableBox(props: ITableProps) {
                 onClickTotalBtn={onClickTotalBtn}
               />
             </div>
-            <div className={styles.toolBarItem}>
-              <Button
-                type="text"
-                onClick={() => {
-                  props.onExport && props.onExport();
-                }}
-              >
-                导出Excel
+
+            <Dropdown menu={{ items }}>
+              <Button>
+                <Space>
+                  {i18n('common.text.export')}
+                  <DownOutlined />
+                </Space>
               </Button>
-            </div>
+            </Dropdown>
           </div>
           <DarkSupportBaseTable
             className={classnames({ dark: isDarkTheme }, props.className, styles.table)}
@@ -207,20 +266,20 @@ export default function TableBox(props: ITableProps) {
             stickyTop={31}
             {...pipeline.getProps()}
           />
-          <div className={styles.statusBar}>
-            <span>{`【${i18n('common.text.result')}】${description}.`}</span>
-            <span>{`【${i18n('common.text.timeConsuming')}】${duration}ms.`}</span>
-            <span>{`【${i18n('common.text.searchRow')}】${tableData.length} ${i18n('common.text.row')}.`}</span>
-          </div>
+          {bottomStatus}
         </>
-      ) : (
-        <StateIndicator state="success" text={i18n('common.text.successfulExecution')} />
-      )}
+      );
+    }
+  };
+  return (
+    <div className={classnames(className, styles.tableBox)}>
+      {renderContent()}
       <Modal
         title={viewTableCellData?.name}
         open={!!viewTableCellData?.name}
         onCancel={handleCancel}
         width="60vw"
+        height="70vh"
         maskClosable={false}
         footer={
           <>
@@ -245,6 +304,7 @@ export default function TableBox(props: ITableProps) {
           />
         </div>
       </Modal>
+      {contextHolder}
     </div>
   );
 }
