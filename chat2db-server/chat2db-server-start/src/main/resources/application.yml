@@ -59,8 +59,8 @@ sa-token:
   is-write-header: true
 
 chatgpt:
-  apiKey: sk-xxxx
-  apiHost: https://api.openai.com/
+  apiKey: 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
+  apiHost: https://api.openai-proxy.com/
   # 可以选择GPT3或GPT35
   version: GPT35
   context:

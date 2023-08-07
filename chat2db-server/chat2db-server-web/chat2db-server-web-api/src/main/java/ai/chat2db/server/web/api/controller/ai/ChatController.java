@@ -30,6 +30,7 @@ import ai.chat2db.server.web.api.controller.ai.enums.PromptType;
 import ai.chat2db.server.web.api.controller.ai.listener.AzureOpenAIEventSourceListener;
 import ai.chat2db.server.web.api.controller.ai.listener.OpenAIEventSourceListener;
 import ai.chat2db.server.web.api.controller.ai.listener.RestAIEventSourceListener;
+import ai.chat2db.server.web.api.controller.ai.out.OutModelApi;
 import ai.chat2db.server.web.api.controller.ai.request.ChatQueryRequest;
 import ai.chat2db.server.web.api.controller.ai.request.ChatRequest;
 import ai.chat2db.server.web.api.controller.ai.rest.client.RestAIClient;
@@ -209,7 +210,7 @@ public class ChatController {
             case CHAT2DBAI:
                 return chatWithChat2dbAi(queryRequest, sseEmitter, uid);
             case RESTAI :
-                return chatWithRestAi(queryRequest, sseEmitter);
+                return chatWithRestAi(queryRequest, sseEmitter,uid);
             case AZUREAI :
                 return chatWithAzureAi(queryRequest, sseEmitter, uid);
         }
@@ -219,13 +220,26 @@ public class ChatController {
     /**
      * 使用自定义AI接口进行聊天
      *
-     * @param prompt
+     * @param queryRequest
      * @param sseEmitter
      * @return
      */
-    private SseEmitter chatWithRestAi(ChatQueryRequest prompt, SseEmitter sseEmitter) {
+    private SseEmitter chatWithRestAi(ChatQueryRequest queryRequest, SseEmitter sseEmitter,String uid)
+            throws IOException {
+        String prompt = buildPrompt(queryRequest);
+        if (prompt.length() / TOKEN_CONVERT_CHAR_LENGTH > MAX_PROMPT_LENGTH) {
+            log.error("提示语超出最大长度:{}，输入长度:{}, 请重新输入", MAX_PROMPT_LENGTH,
+                    prompt.length() / TOKEN_CONVERT_CHAR_LENGTH);
+            throw new ParamBusinessException();
+        }
+        List<OutModelApi> messages = new ArrayList<>();
+        prompt = prompt.replaceAll("#", "");
+        log.info(prompt);
+        OutModelApi currentMessage = OutModelApi.builder().question(prompt).streaming(false).history(new String[]{}).build();
+        messages.add(currentMessage);
+        buildSseEmitter(sseEmitter, uid);
         RestAIEventSourceListener eventSourceListener = new RestAIEventSourceListener(sseEmitter);
-        RestAIClient.getInstance().restCompletions(buildPrompt(prompt), eventSourceListener);
+        RestAIClient.getInstance().restCompletions(prompt, eventSourceListener);
         return sseEmitter;
     }
 

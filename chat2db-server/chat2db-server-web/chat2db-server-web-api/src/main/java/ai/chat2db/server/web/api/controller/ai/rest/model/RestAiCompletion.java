@@ -22,5 +22,11 @@ public class RestAiCompletion implements Serializable {
      * 提示语
      */
     private String prompt;
+    /**
+     *
+     */
+    private Boolean streaming;
 
+    private String[] history;
+    private String question;
 }
